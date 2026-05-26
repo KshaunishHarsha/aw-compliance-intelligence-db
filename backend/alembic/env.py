@@ -21,6 +21,10 @@ if config.config_file_name is not None:
 from app.db.base import Base
 from app.config import get_settings
 
+# Import all models so Alembic's autogenerate can discover them
+import app.models.user  # noqa: F401
+import app.models.document  # noqa: F401
+
 target_metadata = Base.metadata
 settings = get_settings()
 
