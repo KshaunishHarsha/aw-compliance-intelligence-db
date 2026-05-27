@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
+import app.models.user  # noqa: F401 — required for SQLAlchemy FK resolution (documents.ingested_by → users.id)
 from app.models.document import Document, DocumentMetadata, Embedding
 from celery_worker import celery_app
 
@@ -186,17 +187,20 @@ def task_section_split(self, document_id: str) -> None:
                 extra={"document_id": document_id},
             )
 
+            from app.ingestion.cleaner import clean_text
+
             for section in sections:
+                section_text = clean_text(section.text)
                 child = Document(
                     filename=f"{doc.id}_s{section.section_index}_{doc.filename}",
                     original_name=f"[{section.title}] {doc.original_name}",
                     file_path=doc.file_path,
-                    file_size=len(section.text.encode("utf-8", errors="replace")),
+                    file_size=len(section_text.encode("utf-8", errors="replace")),
                     mime_type=doc.mime_type,
                     status="pending",
                     doc_type=doc.doc_type,
                     source=doc.source,
-                    raw_text=section.text,
+                    raw_text=section_text,
                     parent_document_id=doc.id,
                 )
                 session.add(child)
