@@ -6,42 +6,54 @@ from app.llm import get_llm_client
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# The retrieval summary is NOT human-readable. It is a keyword-dense artifact that:
-#   - weights 'A' in the FTS trigger (higher than raw_text 'B')
-#   - bridges informal source language to normalized AWA/APHIS regulatory terminology
-#   - improves both BM25 recall and vector similarity by reducing vocabulary mismatch
-#
-# Grounded example from corpus:
-#   raw: "A responsible adult was not available to accompany APHIS Officials during
-#         the inspection process at 1:35 PM on 02/20/2015"
-#   summary: "USDA APHIS inspection access refusal 9 CFR §2.126(b) recordkeeping
-#             noncompliance California dealer certificate 93-C-0119 attempted inspection"
 _PROMPT = """\
-Generate a retrieval summary for this USDA APHIS animal welfare compliance document.
-
-PURPOSE: NOT a human-readable summary. A keyword-dense, normalized-terminology artifact
-to improve both BM25 full-text search and semantic vector retrieval. Bridge informal or
-inconsistent source language to standard AWA/APHIS regulatory terminology.
+Write a concise, human-readable summary of this USDA APHIS animal welfare document \
+that helps an investigator or researcher quickly understand what the document contains \
+and decide whether it is relevant to their search.
 
 RULES:
-- Use standard regulatory terminology: AWA, 9 CFR Part 2/Part 3, APHIS, Animal Care
-- Include: species, violation types, CFR section numbers, facility type, certificate or docket numbers
-- 150-250 words of keywords and short phrases — NOT prose sentences
-- Do not include legal conclusions, opinions, or case outcomes
-- Normalize informal language (e.g. "animals without water" → "inadequate potable water access 9 CFR §3.9")
+- 3–5 sentences of clear prose. No bullet points, no keyword lists.
+- Lead with the most important facts: facility name, location/state, date, \
+document type, and the primary violation or subject.
+- Name specific CFR sections cited (e.g. 9 CFR §2.40, §3.11) but do not \
+list them exhaustively — focus on the key issues.
+- Include species involved, certificate or docket number, and inspector name \
+when present.
+- Use plain language that an advocate or journalist could read, not technical jargon.
+- Do NOT draw legal conclusions or call anything a confirmed violation.
+- Do NOT include Latin species names — use common names only.
 
-EXAMPLE for inspection_report:
-"USDA APHIS inspection report AWA Animal Welfare Act noncompliance 9 CFR Part 3
-attending veterinarian veterinary care §2.40 inadequate medical treatment
-dogs canines housing facility sanitation unsanitary conditions §3.11
-water access potable water §3.9 recordkeeping §2.75 repeated violation
-California dealer license certificate 93-C-0119 REPEAT noncompliance Animal Care"
+EXAMPLES by document type:
+
+inspection_report:
+"Routine USDA APHIS inspection of Jaws and Paws Sanctuary (cert. 93-C-1234, CA) on \
+October 5 2023 identified concerns with attending veterinarian oversight under \
+9 CFR §2.40 and inadequate housing conditions under §3.125(a) for the facility's \
+dogs and wolf-dogs. Inspectors noted that a written program of veterinary care had \
+not been established. A correction deadline of November 4 2023 was set."
+
+enforcement_action:
+"USDA APHIS consent decision against respondent John Smith (FL) under AWA Docket \
+No. 25-J-0069, resolving alleged violations involving inadequate veterinary care \
+and unsanitary housing for approximately 40 dogs at a licensed breeding facility. \
+The respondent agreed to a $12,000 civil penalty and a 30-day suspension of their \
+AWA license."
+
+regulation:
+"This section of the Animal Welfare Regulations (9 CFR Part 2, Subpart A) covers \
+licensing requirements for dealers and exhibitors, including application procedures, \
+fee schedules, and the conditions under which a license may be suspended or revoked."
+
+policy:
+"This chapter of the USDA APHIS Animal Care Inspection Guide describes the process \
+inspectors use to assess compliance at research facilities, including how IACUC \
+protocols are reviewed and how repeat violations are escalated."
 
 Document type: {doc_type}
 Document text (first 4000 characters):
 {text}
 
-Return only the retrieval summary text, no preamble.\
+Return only the summary paragraph, no preamble.\
 """
 
 
@@ -51,8 +63,8 @@ def generate_retrieval_summary(text: str, doc_type: str) -> str:
         resp = client.chat.completions.create(
             model=settings.llm_mini_model,
             messages=[{"role": "user", "content": _PROMPT.format(doc_type=doc_type, text=text[:4000])}],
-            max_tokens=400,
-            temperature=0.1,
+            max_tokens=300,
+            temperature=0.2,
         )
         return resp.choices[0].message.content.strip()
     except Exception as exc:

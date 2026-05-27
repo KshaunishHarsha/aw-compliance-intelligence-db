@@ -34,6 +34,7 @@ class DocumentResponse(BaseModel):
     source: Optional[str] = None
     retrieval_summary: Optional[str] = None
     ingested_by: Optional[uuid.UUID] = None
+    parent_document_id: Optional[uuid.UUID] = None
     created_at: datetime
     updated_at: datetime
     metadata: Optional[DocumentMetadataResponse] = None

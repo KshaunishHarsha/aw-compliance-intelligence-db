@@ -32,6 +32,7 @@ def _serialize_document(doc: Document) -> DocumentResponse:
         "source": doc.source,
         "retrieval_summary": doc.retrieval_summary,
         "ingested_by": doc.ingested_by,
+        "parent_document_id": doc.parent_document_id,
         "created_at": doc.created_at,
         "updated_at": doc.updated_at,
         "metadata": doc.metadata_rel,
@@ -47,8 +48,28 @@ async def list_documents(
     doc_status: Optional[str] = Query(None, alias="status"),
     doc_type: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
+    parent_id: Optional[uuid.UUID] = Query(
+        None,
+        description="Return children of this parent document (a split regulation/policy).",
+    ),
+    include_parents: bool = Query(
+        False,
+        description="Include parent container documents (those that were split into sections). "
+                    "Defaults to False — only leaf documents are returned.",
+    ),
 ) -> DocumentListResponse:
     base = select(Document)
+
+    if parent_id is not None:
+        # Explicit parent filter: return children of a specific document
+        base = base.where(Document.parent_document_id == parent_id)
+    elif not include_parents:
+        # Default: exclude split-parent documents (those referenced as a parent_document_id)
+        parents_subquery = select(Document.parent_document_id).where(
+            Document.parent_document_id.isnot(None)
+        ).scalar_subquery()
+        base = base.where(Document.id.not_in(parents_subquery))
+
     if doc_status is not None:
         base = base.where(Document.status == doc_status)
     if doc_type is not None:

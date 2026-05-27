@@ -29,11 +29,28 @@ class Document(Base):
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
     )
+    parent_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     metadata_rel: Mapped["DocumentMetadata"] = relationship(back_populates="document", cascade="all, delete-orphan", uselist=False)
     chunks: Mapped[List["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+    children: Mapped[List["Document"]] = relationship(
+        "Document",
+        foreign_keys="Document.parent_document_id",
+        back_populates="parent",
+    )
+    parent: Mapped[Optional["Document"]] = relationship(
+        "Document",
+        foreign_keys="Document.parent_document_id",
+        back_populates="children",
+        remote_side="Document.id",
+    )
 
     def __repr__(self) -> str:
         return f"<Document(id={self.id}, filename={self.filename}, status={self.status})>"
