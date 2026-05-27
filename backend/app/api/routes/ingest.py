@@ -69,13 +69,12 @@ async def upload_and_queue(
     await db.refresh(doc)
 
     logger.info(
-        "Document uploaded, pipeline pending",
+        "Document uploaded, queueing pipeline",
         extra={"document_id": str(doc.id), "doc_type": doc_type, "source": source},
     )
 
-    # Phase 2: queue Celery ingestion chain here
-    # from app.tasks.ingestion import run_ingestion_pipeline
-    # run_ingestion_pipeline.delay(str(doc.id))
+    from app.tasks.ingestion import run_ingestion_pipeline
+    run_ingestion_pipeline(str(doc.id))
 
     return DocumentResponse.model_validate({
         "id": doc.id,

@@ -210,14 +210,17 @@ These are enforced via system prompt and are non-negotiable product requirements
 | Phase | Description | Status |
 |---|---|---|
 | 1 | Foundation — scaffold, schema, infra, Docker Compose | ✅ Complete |
-| 2 | Ingestion Pipeline — OCR through retrieval summary | Not started |
+| 2 | Ingestion Pipeline — OCR through retrieval summary + bulk ingest | ✅ Complete |
 | 3 | Chunking + Embedding — chunks stored in pgvector | Not started |
 | 4 | Hybrid Retrieval Engine — BM25 + vector + metadata merged | Not started |
 | 5 | Investigation Interface — search UI, PDF viewer, filters | Not started |
 | 6 | Grounded Document Chat — scoped RAG with citations | Not started |
 | 7 | Hardening + Deployment — error handling, observability, Railway | Not started |
 
-**Pre-Phase-2 required:** Alembic migration to drop Phase 1's extra tables/columns (organizations, visibility, org_id, audit_log) and rename `uploaded_by` → `ingested_by` in `documents`, aligning the DB with the authoritative schema above.
+**Phase 2 notes:**
+- Pre-Phase-2 Alembic migration applied: dropped org tables, renamed `uploaded_by` → `ingested_by`, added `source` column, fixed `inspection_date` type, added all indexes.
+- LLM calls use OpenRouter (not direct OpenAI): `base_url="https://openrouter.ai/api/v1"`, models `openai/gpt-4o-mini` (pipeline) and `openai/gpt-4o` (chat). Config via `openrouter_api_key`, `llm_mini_model`, `llm_chat_model` in Settings.
+- `scripts/bulk_ingest.py` ingests the local `corpus/` directory (mounted at `/app/corpus` in containers). Run inside the api container: `docker compose exec api python scripts/bulk_ingest.py [--limit N] [--dry-run]`.
 
 ---
 

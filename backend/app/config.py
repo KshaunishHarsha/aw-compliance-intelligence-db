@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     jwt_algorithm: str = "HS256"
 
+    # LLM (OpenRouter — OpenAI-compatible)
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    llm_mini_model: str = "openai/gpt-4o-mini"
+    llm_chat_model: str = "openai/gpt-4o"
+
 
 @lru_cache()
 def get_settings() -> Settings:
