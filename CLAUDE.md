@@ -219,11 +219,18 @@ These are enforced via system prompt and are non-negotiable product requirements
 |---|---|---|
 | 1 | Foundation — scaffold, schema, infra, Docker Compose | ✅ Complete |
 | 2 | Ingestion Pipeline — OCR through retrieval summary + bulk ingest | ✅ Complete |
-| 3 | Embedding — document-level vectors via text-embedding-3-small, stored in pgvector | Not started |
+| 3 | Embedding — document-level vectors via text-embedding-3-small, stored in pgvector | ✅ Complete |
 | 4 | Hybrid Retrieval Engine — BM25 + vector + metadata merged | Not started |
 | 5 | Investigation Interface — search UI, PDF viewer, filters | Not started |
 | 6 | Grounded Document Chat — scoped RAG with citations | Not started |
 | 7 | Hardening + Deployment — error handling, observability, Railway | Not started |
+
+**Phase 3 notes:**
+- Embedding is document-level (one vector per document, `chunk_id = NULL`). The `chunks` table is unused for now.
+- Embedding input: `retrieval_summary + facility_name + jurisdiction + species + categories + doc_type` concatenated.
+- Migration `e6a7b8c9d0e1` makes `embeddings.chunk_id` nullable to support document-level rows.
+- `task_embed` fires from within `task_enrich` after commit. Max 3 retries, does not change `documents.status` on failure.
+- To re-embed all docs: queue `task_embed` for every `status='complete'` document (see `docs/phase3_embedding.md`).
 
 **Phase 2 notes:**
 - Pre-Phase-2 Alembic migration applied: dropped org tables, renamed `uploaded_by` → `ingested_by`, added `source` column, fixed `inspection_date` type, added all indexes.
