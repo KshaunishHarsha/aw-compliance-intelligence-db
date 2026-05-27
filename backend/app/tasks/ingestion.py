@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
-from app.models.document import Document, DocumentMetadata
+from app.models.document import Document, DocumentMetadata, Embedding
 from celery_worker import celery_app
 
 logger = logging.getLogger(__name__)
@@ -276,8 +276,67 @@ def task_enrich(self, document_id: str) -> None:
                 "enrich done",
                 extra={"document_id": document_id, "categories": categories},
             )
+
+            # Queue embedding after enrich completes
+            task_embed.apply_async(args=[document_id])
+
         except Exception as exc:
             _fail(session, document_id, "enrich", exc)
+            raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, name="tasks.embed", max_retries=3, default_retry_delay=30)
+def task_embed(self, document_id: str) -> None:
+    """Generate and store a document-level embedding from retrieval_summary + metadata."""
+    logger.info("embed start", extra={"document_id": document_id})
+    with _Session() as session:
+        try:
+            doc = _get_doc(session, document_id)
+            meta = (
+                session.query(DocumentMetadata)
+                .filter(DocumentMetadata.document_id == document_id)
+                .first()
+            )
+
+            from app.ingestion.embedder import build_embedding_input, embed
+
+            embedding_input = build_embedding_input(
+                retrieval_summary=doc.retrieval_summary,
+                facility_name=meta.facility_name if meta else None,
+                jurisdiction=meta.jurisdiction if meta else None,
+                species=meta.species if meta else None,
+                categories=meta.categories if meta else None,
+                doc_type=doc.doc_type,
+            )
+
+            if not embedding_input.strip():
+                logger.warning("embed skipped: empty input", extra={"document_id": document_id})
+                return
+
+            vector = embed(embedding_input)
+
+            # Upsert: one embedding row per document
+            existing = (
+                session.query(Embedding)
+                .filter(Embedding.document_id == document_id, Embedding.chunk_id.is_(None))
+                .first()
+            )
+            if existing:
+                existing.embedding = vector
+                existing.model = settings.embedding_model
+            else:
+                session.add(Embedding(
+                    document_id=document_id,
+                    chunk_id=None,
+                    embedding=vector,
+                    model=settings.embedding_model,
+                ))
+
+            session.commit()
+            logger.info("embed done", extra={"document_id": document_id})
+
+        except Exception as exc:
+            logger.error("embed failed", extra={"document_id": document_id, "error": str(exc)})
             raise self.retry(exc=exc)
 
 

@@ -99,11 +99,13 @@ Every chunk MUST carry: `document_id`, `chunk_index`, `chunk_type`, `page_number
 
 ### `embeddings`
 ```sql
-id UUID PK, chunk_id UUID -> chunks(id) CASCADE,
+id UUID PK, chunk_id UUID -> chunks(id) CASCADE (nullable — NULL for document-level embeddings),
 document_id UUID -> documents(id) CASCADE,
 embedding vector(1536), model TEXT DEFAULT 'text-embedding-3-small', created_at
 ```
 IVFFlat index with `lists = 100`, cosine ops.
+
+> **Phase 3 note:** We embed at **document level** (one embedding per document), not chunk level. `chunk_id` is nullable. The embedding input is: `retrieval_summary + facility_name + species + categories` concatenated. The `chunks` table is reserved for a future sub-chunking pass if recall quality requires it.
 
 ### FTS Trigger
 `fts_vector` is built by a DB trigger. `retrieval_summary` → weight A, `raw_text` → weight B. **Never populate `fts_vector` from application code.**
@@ -112,9 +114,11 @@ IVFFlat index with `lists = 100`, cosine ops.
 
 ## Retrieval Summary — What It Is
 
-NOT a human-readable summary. A keyword-heavy, normalized-terminology artifact that bridges inconsistent source language to improve BM25 and semantic recall.
+A short (3–5 sentence) **human-readable** prose summary that helps investigators quickly understand a document and decide whether to open it. It names the facility, state, date, primary issue, specific CFR sections, and species involved.
 
-Example: raw "hens unable to access hydration infrastructure" → summary "poultry water access violations during transport"
+It is also the primary input for semantic embedding — so it must be both readable and keyword-rich in AWA/CFR terminology. It is **not** a keyword dump.
+
+Example: "A routine USDA APHIS inspection of Lucky Rabbits Inc. (cert. 93-B-0242, CA) on July 11, 2016 identified repeat violations under 9 CFR §3.50(a), §3.51(d), and §3.53 related to uncovered light bulbs over enclosures, rusted housing structures, and damaged wire floors that could injure the rabbits. Original correction dates had passed without full resolution."
 
 ---
 
@@ -139,8 +143,12 @@ Default weights (0.6 / 0.3 / 0.1) must be **configurable, not hardcoded**. Do no
 ```
 upload to Supabase Storage
 → create document row (status: pending)
-→ ocr_extract → clean → classify → [metadata, categorize, summarize] → chunk → embed
+→ ocr_extract → clean → classify → section_split → enrich → embed
 ```
+
+- `section_split`: regulation/policy docs are split into child Document rows (one per Part/Subpart/chapter); parent marked complete. Inspection reports and enforcement actions pass straight through to enrich.
+- `enrich`: metadata extraction + categorization + retrieval summary (all three LLM calls in one task).
+- `embed`: builds embedding input from `retrieval_summary + metadata fields`, calls `text-embedding-3-small`, stores one row in `embeddings` per document.
 
 - Each stage updates `documents.status`; failures write to `documents.error_message` prefixed with stage name (`"ocr_extract: ..."`)
 - Each stage receives `document_id` and reads/writes the document record
@@ -211,7 +219,7 @@ These are enforced via system prompt and are non-negotiable product requirements
 |---|---|---|
 | 1 | Foundation — scaffold, schema, infra, Docker Compose | ✅ Complete |
 | 2 | Ingestion Pipeline — OCR through retrieval summary + bulk ingest | ✅ Complete |
-| 3 | Chunking + Embedding — chunks stored in pgvector | Not started |
+| 3 | Embedding — document-level vectors via text-embedding-3-small, stored in pgvector | Not started |
 | 4 | Hybrid Retrieval Engine — BM25 + vector + metadata merged | Not started |
 | 5 | Investigation Interface — search UI, PDF viewer, filters | Not started |
 | 6 | Grounded Document Chat — scoped RAG with citations | Not started |
@@ -219,8 +227,10 @@ These are enforced via system prompt and are non-negotiable product requirements
 
 **Phase 2 notes:**
 - Pre-Phase-2 Alembic migration applied: dropped org tables, renamed `uploaded_by` → `ingested_by`, added `source` column, fixed `inspection_date` type, added all indexes.
+- `parent_document_id` migration applied: self-referential FK on `documents`; regulation/policy docs split into child sections, parent marked complete as a provenance container.
 - LLM calls use OpenRouter (not direct OpenAI): `base_url="https://openrouter.ai/api/v1"`, models `openai/gpt-4o-mini` (pipeline) and `openai/gpt-4o` (chat). Config via `openrouter_api_key`, `llm_mini_model`, `llm_chat_model` in Settings.
 - `scripts/bulk_ingest.py` ingests the local `corpus/` directory (mounted at `/app/corpus` in containers). Run inside the api container: `docker compose exec api python scripts/bulk_ingest.py [--limit N] [--dry-run]`.
+- API `GET /documents` defaults to leaf documents only (`include_parents=false`). Pass `parent_id=<uuid>` to list children of a split document.
 
 ---
 

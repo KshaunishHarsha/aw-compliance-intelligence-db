@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     llm_mini_model: str = "openai/gpt-4o-mini"
     llm_chat_model: str = "openai/gpt-4o"
+    embedding_model: str = "text-embedding-3-small"
 
 
 @lru_cache()
