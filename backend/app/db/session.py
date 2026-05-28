@@ -5,8 +5,9 @@ settings = get_settings()
 
 async_engine = create_async_engine(
     settings.database_url,
-    pool_pre_ping=True,
-    echo=settings.environment == "development"
+    pool_pre_ping=False,
+    pool_recycle=300,
+    echo=False,
 )
 
 AsyncSessionLocal = async_sessionmaker(

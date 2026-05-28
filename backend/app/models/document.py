@@ -29,6 +29,7 @@ class Document(Base):
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
     )
+    fts_vector: Mapped[Optional[Any]] = mapped_column(TSVECTOR, nullable=True)
     parent_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("documents.id", ondelete="CASCADE"),

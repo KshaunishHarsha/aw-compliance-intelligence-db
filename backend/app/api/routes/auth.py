@@ -71,15 +71,18 @@ async def login(
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
+    user_id_str = str(user.id)
+    user_role = user.role
+
     await db.execute(
-        update(User).where(User.id == user.id).values(last_login_at=datetime.now(timezone.utc))
+        update(User).where(User.id == user.id).values(last_login_at=datetime.utcnow())
     )
     await db.commit()
 
-    logger.info("User login", extra={"user_id": str(user.id)})
+    logger.info("User login", extra={"user_id": user_id_str})
     return TokenResponse(
-        access_token=_create_access_token(str(user.id), user.role),
-        refresh_token=_create_refresh_token(str(user.id)),
+        access_token=_create_access_token(user_id_str, user_role),
+        refresh_token=_create_refresh_token(user_id_str),
     )
 
 
