@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
+import { ChatPanel } from "@/components/chat/chat-panel";
 import { MetadataPanel } from "@/components/document/metadata-panel";
 import {
   ApiError,
@@ -37,6 +38,7 @@ export default function DocumentDetailPage({ params }: PageProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,18 +114,37 @@ export default function DocumentDetailPage({ params }: PageProps) {
           ← Back to search
         </Link>
         <span className="font-mono text-[11px] text-tertiary">/</span>
-        <span className="font-mono text-[11px] text-secondary truncate">
+        <span className="font-mono text-[11px] text-secondary truncate flex-1">
           {doc.metadata?.facility_name ??
             doc.original_name.replace(/\.pdf$/i, "")}
         </span>
+        {!chatOpen && (
+          <button
+            type="button"
+            onClick={() => setChatOpen(true)}
+            className="rounded-sm border border-accent/40 bg-accent-muted px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-accent hover:border-accent hover:bg-accent/20 transition-colors"
+          >
+            Ask about this document
+          </button>
+        )}
       </div>
 
-      {/* Two-pane layout */}
+      {/* Multi-pane layout */}
       <div className="flex flex-1 overflow-hidden">
         <MetadataPanel document={doc} />
         <div className="flex-1 overflow-hidden">
           <PDFViewer url={url} />
         </div>
+        {chatOpen && (
+          <ChatPanel
+            documentId={doc.id}
+            documentTitle={
+              doc.metadata?.facility_name ??
+              doc.original_name.replace(/\.pdf$/i, "")
+            }
+            onClose={() => setChatOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

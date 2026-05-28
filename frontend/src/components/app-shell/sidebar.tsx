@@ -49,9 +49,7 @@ const NAV: NavItem[] = [
   {
     label: "Chat",
     href: "/chat",
-    active: (p) => p.startsWith("/chat"),
-    disabled: true,
-    badge: "Phase 6",
+    active: (p) => p === "/chat" || p.startsWith("/chat/"),
     icon: (
       <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden>
         <path

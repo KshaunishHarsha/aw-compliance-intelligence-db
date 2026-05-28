@@ -11,9 +11,10 @@ async_engine = create_async_engine(
 )
 
 AsyncSessionLocal = async_sessionmaker(
-    bind=async_engine, 
-    autocommit=False, 
-    autoflush=False
+    bind=async_engine,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,  # async-safe: don't re-fetch attrs after commit
 )
 
 async def get_db():
