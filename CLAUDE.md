@@ -222,8 +222,18 @@ These are enforced via system prompt and are non-negotiable product requirements
 | 3 | Embedding — document-level vectors via text-embedding-3-small, stored in pgvector | ✅ Complete |
 | 4 | Hybrid Retrieval Engine — BM25 + vector + metadata + match reasoning | ✅ Complete |
 | 5 | Investigation Interface — design system, app shell, login, search, document detail with PDF viewer, browse | ✅ Complete |
-| 6 | Grounded Document Chat — scoped RAG with citations | Not started |
+| 6 | Grounded Document Chat — document-scoped RAG with SSE streaming + citation pills + conversation history | ✅ Complete (V1.0) |
 | 7 | Hardening + Deployment — error handling, observability, Railway | Not started |
+
+**Phase 6 notes:**
+- Document-scope chat shipped; result-set scope deferred to V1.1 (the route returns 501 for `scope_type="result_set"`). `conversations.scope_query` and `scope_filters` columns are reserved for that mode.
+- Defense in depth across all three constraints: (a) strong `SYSTEM_PROMPT` in `app/chat/rag.py`, (b) retrieval bounded to the scope document's `raw_text`, (c) post-hoc validation — citations resolved against actual passages, verdict language regex-detected and logged.
+- Migration `a8b9c0d1e2f3` adds `conversations` + `messages` tables (both cascade on parent delete, indexed for list-by-user and ordered-message-fetch).
+- Streaming uses Server-Sent Events: `POST /api/chat/conversations/{id}/messages` returns `text/event-stream` emitting `token` / `citations` / `done` / `error` events. Frontend reads via `fetch` + `ReadableStream` since `EventSource` doesn't support custom `Authorization` headers.
+- Citations live at the passage level (section-header label, e.g. `§2.40`, or `Passage N` fallback). Real PDF page numbers deferred — requires a char-offset → page map during ingestion.
+- `expire_on_commit=False` set on `AsyncSessionLocal` (`app/db/session.py`) — required for async-safe ORM access across the commit boundary. Don't revert.
+- Entry points: (1) "Ask about this document" button on `/documents/[id]` opens a 480px slide-in panel; (2) sidebar "Chat" → `/chat` (history list with joined doc context) → `/chat/[id]` (full thread + continue).
+- See `docs/phase6_grounded_chat.md` for full design + pipeline.
 
 **Phase 5 notes:**
 - Next.js 16 + Tailwind v4 + React 19. Tailwind v4 uses CSS-first `@theme inline` — there is no `tailwind.config.ts` in this stack. Next 16 makes `params` a Promise; unwrap with `React.use()`.
