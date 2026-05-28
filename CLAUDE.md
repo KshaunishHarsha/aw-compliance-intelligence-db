@@ -108,7 +108,7 @@ IVFFlat index with `lists = 100`, cosine ops.
 > **Phase 3 note:** We embed at **document level** (one embedding per document), not chunk level. `chunk_id` is nullable. The embedding input is: `retrieval_summary + facility_name + species + categories` concatenated. The `chunks` table is reserved for a future sub-chunking pass if recall quality requires it.
 
 ### FTS Trigger
-`fts_vector` is built by a DB trigger. `retrieval_summary` → weight A, `raw_text` → weight B. **Never populate `fts_vector` from application code.**
+`fts_vector` is built by a DB trigger and exists on **both** `documents` and `chunks`. `retrieval_summary` → weight A, `raw_text` → weight B (truncated to 500k chars on documents). **Never populate `fts_vector` from application code.** The `documents.fts_vector` migration is `f7b8c9d0e1f2`.
 
 ---
 
@@ -220,10 +220,19 @@ These are enforced via system prompt and are non-negotiable product requirements
 | 1 | Foundation — scaffold, schema, infra, Docker Compose | ✅ Complete |
 | 2 | Ingestion Pipeline — OCR through retrieval summary + bulk ingest | ✅ Complete |
 | 3 | Embedding — document-level vectors via text-embedding-3-small, stored in pgvector | ✅ Complete |
-| 4 | Hybrid Retrieval Engine — BM25 + vector + metadata merged | Not started |
+| 4 | Hybrid Retrieval Engine — BM25 + vector + metadata + match reasoning | ✅ Complete |
 | 5 | Investigation Interface — search UI, PDF viewer, filters | Not started |
 | 6 | Grounded Document Chat — scoped RAG with citations | Not started |
 | 7 | Hardening + Deployment — error handling, observability, Railway | Not started |
+
+**Phase 4 notes:**
+- `POST /api/search` returns top-K documents with score breakdown and (for top 5) LLM-generated `match_reason`.
+- Filter params (all optional): `doc_type`, `source`, `categories`, `jurisdiction`, `facility_name`, `species`, `inspector_name`, `reference_number`, `date_from`, `date_to`, `include_parents`. Multi-value fields use OR.
+- Default weights are 0.6 vector / 0.3 BM25 / 0.1 metadata_boost — overridable per-request, do not change defaults without being asked.
+- Migration `f7b8c9d0e1f2` added `documents.fts_vector` + trigger + GIN index; backfilled all existing docs.
+- Reasoning runs `gpt-4o-mini` for top 5 only, parallelized via `asyncio.gather` (~2s added latency, ~$0.005 per search).
+- Phase 1 side-fixes: pinned `bcrypt==4.2.0`, fixed `last_login_at` tz mismatch in `auth.py`, switched session to `pool_pre_ping=False`/`pool_recycle=300`.
+- See `docs/phase4_hybrid_retrieval.md` for full design + test recipes.
 
 **Phase 3 notes:**
 - Embedding is document-level (one vector per document, `chunk_id = NULL`). The `chunks` table is unused for now.
