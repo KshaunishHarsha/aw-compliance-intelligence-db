@@ -1,26 +1,210 @@
 @import "tailwindcss";
 
+/* ────────────────────────────────────────────────────────────────────────────
+   Design tokens — Animal Welfare Compliance Intelligence Platform
+   Aesthetic: refined utilitarian dark theme, editorial typography, archival
+   precision. All tokens are semantic — name by role, not by value.
+
+   Tailwind v4 uses the CSS-first @theme directive; there is no
+   tailwind.config.ts in this stack (see node_modules/next/dist/docs/01-app
+   /01-getting-started/11-css.md). Everything below is the source of truth.
+   ──────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces (3 layers, warm dark with brown undertone) */
+  --surface-1: #14110f; /* page background */
+  --surface-2: #1c1916; /* card / panel */
+  --surface-3: #252220; /* elevated card / hover */
+
+  /* Borders */
+  --border-subtle: #2a2622;
+  --border-default: #3a332d;
+  --border-strong: #4d4439;
+
+  /* Text hierarchy */
+  --text-primary: #f5f1eb;   /* warm off-white, NOT pure white */
+  --text-secondary: #b8b0a7;
+  --text-tertiary: #8a8278;
+  --text-disabled: #5a554d;
+
+  /* Accent — muted amber, archival/investigatory */
+  --accent-default: #b8842c;
+  --accent-hover: #d49b3d;
+  --accent-muted: #3d2d14;      /* dark amber bg, for tags & subtle highlights */
+  --accent-foreground: #14110f; /* text on solid amber */
+
+  /* Status colors — meet AA against surface-1 */
+  --status-critical-text: #e26b6b;
+  --status-critical-muted: #3a1818;
+  --status-warning-text: #d4a574;
+  --status-warning-muted: #3a2a14;
+  --status-info-text: #8fa8c5;
+  --status-info-muted: #1a2330;
+  --status-success-text: #7fa679;
+  --status-success-muted: #1a2a1a;
+
+  /* Border-driven elevation (no glowing drop shadows) */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.55), 0 1px 2px rgba(0, 0, 0, 0.65);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.65), 0 4px 8px rgba(0, 0, 0, 0.55);
+  --shadow-accent-glow: 0 0 0 3px rgba(184, 132, 44, 0.25);
+
+  /* Border radii — sharp, never pill-shaped on form controls */
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-full: 9999px;
 }
 
+/* Map tokens into the Tailwind v4 theme so utilities work everywhere. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Fonts wired up from next/font in layout.tsx */
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Surfaces — bg-surface-1, bg-surface-2, bg-surface-3 */
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  /* Borders — border-subtle, border-default, border-strong */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+
+  /* Text — text-primary, text-secondary, text-tertiary, text-disabled */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-disabled: var(--text-disabled);
+
+  /* Accent — bg-accent, text-accent, bg-accent-muted, etc. */
+  --color-accent: var(--accent-default);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-muted: var(--accent-muted);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* Status — text-critical, bg-critical-muted, etc. */
+  --color-critical: var(--status-critical-text);
+  --color-critical-muted: var(--status-critical-muted);
+  --color-warning: var(--status-warning-text);
+  --color-warning-muted: var(--status-warning-muted);
+  --color-info: var(--status-info-text);
+  --color-info-muted: var(--status-info-muted);
+  --color-success: var(--status-success-text);
+  --color-success-muted: var(--status-success-muted);
+
+  /* Type scale — slightly compressed; 15px base for research-tool density */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.8125rem;   /* 13px */
+  --text-base: 0.9375rem; /* 15px */
+  --text-lg: 1.0625rem;   /* 17px */
+  --text-xl: 1.375rem;    /* 22px */
+  --text-2xl: 1.75rem;    /* 28px */
+  --text-3xl: 2.25rem;    /* 36px */
+  --text-4xl: 3rem;       /* 48px */
+
+  /* Weight tokens */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Radii — rounded-sm, rounded-md, rounded-lg, rounded-full */
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-full: 9999px;
+
+  /* Shadows — shadow-1, shadow-2, shadow-3 */
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+  --shadow-3: var(--shadow-3);
+  --shadow-accent-glow: var(--shadow-accent-glow);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Base styles */
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle 1px grain via SVG noise — gives the dark surface tactile texture
+   without overpowering content. Pinned at low opacity. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* Surface utility classes */
+.surface-1 { background-color: var(--surface-1); color: var(--text-primary); }
+.surface-2 { background-color: var(--surface-2); color: var(--text-primary); }
+.surface-3 { background-color: var(--surface-3); color: var(--text-primary); }
+
+/* Text utility classes */
+.text-primary   { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-tertiary  { color: var(--text-tertiary); }
+.text-disabled  { color: var(--text-disabled); }
+
+/* Display font helper for editorial headings */
+.font-display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-feature-settings: "ss01", "ss02";
+  letter-spacing: -0.01em;
+}
+
+/* Monospace helper for citations and reference numbers */
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-feature-settings: "zero", "ss01";
+}
+
+/* Focus ring — keyboard nav accessibility */
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-accent-glow);
+  border-color: var(--accent-default);
+}
+
+/* Custom scrollbar — thin, warm, fits the dark surfaces */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--surface-1);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Text selection — amber-tinted */
+::selection {
+  background: var(--accent-default);
+  color: var(--accent-foreground);
 }

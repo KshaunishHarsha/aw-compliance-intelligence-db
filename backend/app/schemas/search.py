@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field
 
 
 class SearchRequest(BaseModel):
-    query: str = Field(..., min_length=1, max_length=500)
+    # Either query or at least one filter must be present.
+    # An empty/missing query triggers filter-only mode (ordered by inspection_date).
+    query: Optional[str] = Field(None, max_length=500)
     top_k: int = Field(20, ge=1, le=100)
 
     # Document-level filters
