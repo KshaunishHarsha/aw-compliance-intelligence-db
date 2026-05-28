@@ -32,6 +32,8 @@ class Section:
     title: str
     text: str
     section_index: int
+    page_start: Optional[int] = None  # 1-indexed PDF page, None if unknown
+    page_end: Optional[int] = None    # 1-indexed PDF page (inclusive)
 
 
 def split_into_sections(
@@ -62,11 +64,35 @@ def _split_regulation(text: str, file_bytes: Optional[bytes]) -> list[Section]:
         toc = doc.get_toc()
         if toc:
             return _split_bluebook_by_toc(doc, toc)
-    # CFR Title 9 has no PDF bookmarks — use text-based regex
-    return _split_cfr_by_text(text)
+        # CFR Title 9 has no PDF bookmarks — text-based, with page lookup
+        return _split_cfr_by_text(text, doc)
+    return _split_cfr_by_text(text, None)
 
 
-def _split_cfr_by_text(text: str) -> list[Section]:
+def _find_page_for_snippet(doc, snippet: str) -> Optional[int]:
+    """
+    Linear scan: which 1-indexed page contains this snippet?
+    Tries successively deeper offsets into the section text first — the first
+    few hundred chars often include the section title which also appears on
+    table-of-contents pages, so deeper offsets disambiguate body from TOC.
+    """
+    if doc is None or not snippet:
+        return None
+    for start in (300, 150, 0):
+        needle_raw = snippet[start : start + 120]
+        if not needle_raw or len(needle_raw.strip()) < 30:
+            continue
+        needle = " ".join(needle_raw.split())
+        if not needle:
+            continue
+        for p in range(doc.page_count):
+            page_text = " ".join(doc[p].get_text().split())
+            if needle in page_text:
+                return p + 1
+    return None
+
+
+def _split_cfr_by_text(text: str, doc=None) -> list[Section]:
     """
     Split CFR Title 9 at Subpart level within each AWA-relevant Part.
     Parts without Subparts (Part 1 — Definitions) are kept whole.
@@ -101,15 +127,44 @@ def _split_cfr_by_text(text: str) -> list[Section]:
 
         sub_sections = _split_part_by_subpart(part_text, part_label, first_wins=False)
         if sub_sections:
+            part_idx_first = len(sections)
+            # Bound page search to pages ≥ previous subpart's start. Without
+            # this, e.g. CFR Part 11 Subpart A matches an unrelated occurrence
+            # of its title elsewhere in the 1000-page doc.
+            last_found = 1
+            if doc is not None and sections:
+                # Subparts within a later Part must be at or after the previous
+                # Part's last subpart start
+                for prev in reversed(sections):
+                    if prev.page_start:
+                        last_found = prev.page_start
+                        break
             for ss in sub_sections:
                 ss.section_index = idx
+                if doc is not None:
+                    ss.page_start = _find_page_for_snippet_in_range(
+                        doc, ss.text, last_found, doc.page_count + 1
+                    )
+                    if ss.page_start:
+                        last_found = ss.page_start
+                else:
+                    ss.page_start = None
                 sections.append(ss)
                 idx += 1
+            # Backfill page_end from the next subpart's page_start, clamping
+            # so end ≥ start (handles same-page neighbors).
+            part_subs = sections[part_idx_first:]
+            for k, ss in enumerate(part_subs):
+                if ss.page_start is None:
+                    continue
+                if k + 1 < len(part_subs) and part_subs[k + 1].page_start:
+                    ss.page_end = max(ss.page_start, part_subs[k + 1].page_start - 1)
         else:
             sections.append(Section(
                 title=f"{part_label} — {part_title}",
                 text=part_text,
                 section_index=idx,
+                page_start=_find_page_for_snippet(doc, part_text),
             ))
             idx += 1
 
@@ -176,20 +231,27 @@ def _split_bluebook_by_toc(doc, toc: list) -> list[Section]:
     )
     if intro_entry:
         end = awa_act_entry[1] if awa_act_entry else (part_ranges.get("PART 1", (50, 50))[0])
-        sections.append(Section("Introduction", page_text(intro_entry[1], end), idx)); idx += 1
+        sections.append(Section(
+            "Introduction", page_text(intro_entry[1], end), idx,
+            page_start=intro_entry[1], page_end=end - 1,
+        )); idx += 1
 
     # -- AWA statute (ANIMAL WELFARE ACT, L3) --
     awa_statute = next((p for _, t, p in toc if t.strip() == "ANIMAL WELFARE ACT"), None)
     if awa_statute:
         end = part_ranges.get("PART 1", (awa_statute + 30, 0))[0]
         sections.append(Section(
-            "Animal Welfare Act (Statute)", page_text(awa_statute, end), idx
+            "Animal Welfare Act (Statute)", page_text(awa_statute, end), idx,
+            page_start=awa_statute, page_end=end - 1,
         )); idx += 1
 
     # -- Part 1: keep whole --
     if "PART 1" in part_ranges:
         s, e = part_ranges["PART 1"]
-        sections.append(Section("PART 1 – DEFINITION OF TERMS", page_text(s, e), idx)); idx += 1
+        sections.append(Section(
+            "PART 1 – DEFINITION OF TERMS", page_text(s, e), idx,
+            page_start=s, page_end=e - 1,
+        )); idx += 1
 
     # -- Part 2: use Level-4 Subpart bookmarks --
     if "PART 2" in part_ranges:
@@ -201,10 +263,12 @@ def _split_bluebook_by_toc(doc, toc: list) -> list[Section]:
                 f"PART 2 – REGULATIONS, {title}",
                 page_text(sp, ep),
                 idx,
+                page_start=sp, page_end=ep - 1,
             )); idx += 1
         if not p2_subparts:
             sections.append(Section(
-                "PART 2 – REGULATIONS", page_text(p2_start, p2_end), idx
+                "PART 2 – REGULATIONS", page_text(p2_start, p2_end), idx,
+                page_start=p2_start, page_end=p2_end - 1,
             )); idx += 1
 
     # -- Part 3: Level-4 bookmarks are incomplete; use text-based fallback --
@@ -225,14 +289,54 @@ def _split_bluebook_by_toc(doc, toc: list) -> list[Section]:
         # Running page headers ("Subpart A" with no dash) don't match _SUBPART_RE at all.
         sub_sections = _split_part_by_subpart(p3_text, "PART 3 – STANDARDS", first_wins=False)
         if sub_sections:
+            # Find each subpart's first PDF page within Part 3's range, bounded
+            # at/after the previous subpart's page so order is preserved.
+            last_found = p3_start
             for ss in sub_sections:
                 ss.section_index = idx
+                ss.page_start = _find_page_for_snippet_in_range(
+                    doc, ss.text, last_found, p3_end
+                )
+                if ss.page_start:
+                    last_found = ss.page_start
                 sections.append(ss)
                 idx += 1
+            # Backfill page_end from next subpart's page_start; clamp so end ≥ start.
+            part3_sections = [s for s in sections if s.title.startswith("PART 3")]
+            for k, ss in enumerate(part3_sections):
+                if ss.page_start is None:
+                    continue
+                if k + 1 < len(part3_sections) and part3_sections[k + 1].page_start:
+                    ss.page_end = max(ss.page_start, part3_sections[k + 1].page_start - 1)
+                else:
+                    ss.page_end = p3_end - 1
         else:
-            sections.append(Section("PART 3 – STANDARDS", p3_text, idx)); idx += 1
+            sections.append(Section(
+                "PART 3 – STANDARDS", p3_text, idx,
+                page_start=p3_start, page_end=p3_end - 1,
+            )); idx += 1
 
     return sections
+
+
+def _find_page_for_snippet_in_range(
+    doc, snippet: str, page_lo: int, page_hi: int
+) -> Optional[int]:
+    """Like _find_page_for_snippet but bounded to [page_lo, page_hi)."""
+    if doc is None or not snippet:
+        return None
+    for start in (300, 150, 0):
+        needle_raw = snippet[start : start + 120]
+        if not needle_raw or len(needle_raw.strip()) < 30:
+            continue
+        needle = " ".join(needle_raw.split())
+        if not needle:
+            continue
+        for p in range(page_lo - 1, min(page_hi - 1, doc.page_count)):
+            page_text = " ".join(doc[p].get_text().split())
+            if needle in page_text:
+                return p + 1
+    return None
 
 
 def _split_part_by_subpart(
@@ -298,6 +402,9 @@ def _split_policy(file_bytes: bytes) -> list[Section]:
             doc[p].get_text()
             for p in range(start_page - 1, min(end_page - 1, doc.page_count))
         )
-        sections.append(Section(title=title, text=pages_text, section_index=i))
+        sections.append(Section(
+            title=title, text=pages_text, section_index=i,
+            page_start=start_page, page_end=end_page - 1,
+        ))
 
     return sections

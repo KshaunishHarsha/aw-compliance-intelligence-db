@@ -35,6 +35,9 @@ class DocumentResponse(BaseModel):
     retrieval_summary: Optional[str] = None
     ingested_by: Optional[uuid.UUID] = None
     parent_document_id: Optional[uuid.UUID] = None
+    # 1-indexed PDF page range for split-section children; None for root docs
+    page_start: Optional[int] = None
+    page_end: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     metadata: Optional[DocumentMetadataResponse] = None

@@ -13,10 +13,18 @@ const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.15;
 
-export function PDFViewer({ url }: { url: string }) {
+interface PDFViewerProps {
+  url: string;
+  /** Optional 1-indexed page to open at (used for split-section children). */
+  initialPage?: number | null;
+  /** Optional last page of the section, used to clamp jumps and show the range. */
+  pageEnd?: number | null;
+}
+
+export function PDFViewer({ url, initialPage, pageEnd }: PDFViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initialPage ?? 1);
   const [zoom, setZoom] = useState(1.0);
   const [pageWidth, setPageWidth] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -33,6 +41,14 @@ export function PDFViewer({ url }: { url: string }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // If the caller passes a new initialPage (e.g. user navigates between
+  // split-section siblings), jump there. We only honor it after the doc has
+  // loaded so we don't try to render past the end.
+  useEffect(() => {
+    if (!initialPage || !numPages) return;
+    setPage(Math.max(1, Math.min(numPages, initialPage)));
+  }, [initialPage, numPages]);
 
   const goPrev = () => setPage((p) => Math.max(1, p - 1));
   const goNext = () => setPage((p) => (numPages ? Math.min(numPages, p + 1) : p));
@@ -81,6 +97,28 @@ export function PDFViewer({ url }: { url: string }) {
           >
             Next →
           </button>
+
+          {/* Section range hint — visible only when the doc is a split child */}
+          {initialPage && (
+            <div className="flex items-center gap-2 ml-3 pl-3 border-l border-border-default">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-tertiary">
+                Section
+              </span>
+              <span className="font-mono text-[10px] text-secondary">
+                pp. {initialPage}{pageEnd && pageEnd !== initialPage ? `–${pageEnd}` : ""}
+              </span>
+              {(page < initialPage || (pageEnd && page > pageEnd)) && (
+                <button
+                  type="button"
+                  onClick={() => setPage(initialPage)}
+                  className="rounded-sm border border-accent/40 bg-accent-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent hover:border-accent transition-colors"
+                  title="Jump back to the start of this section"
+                >
+                  Jump to section
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-1">

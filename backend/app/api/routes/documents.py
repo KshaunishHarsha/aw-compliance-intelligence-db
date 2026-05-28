@@ -33,6 +33,8 @@ def _serialize_document(doc: Document) -> DocumentResponse:
         "retrieval_summary": doc.retrieval_summary,
         "ingested_by": doc.ingested_by,
         "parent_document_id": doc.parent_document_id,
+        "page_start": doc.page_start,
+        "page_end": doc.page_end,
         "created_at": doc.created_at,
         "updated_at": doc.updated_at,
         "metadata": doc.metadata_rel,

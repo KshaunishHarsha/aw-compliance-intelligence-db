@@ -202,6 +202,8 @@ def task_section_split(self, document_id: str) -> None:
                     source=doc.source,
                     raw_text=section_text,
                     parent_document_id=doc.id,
+                    page_start=section.page_start,
+                    page_end=section.page_end,
                 )
                 session.add(child)
                 session.flush()  # populate child.id before queuing

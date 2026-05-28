@@ -133,7 +133,11 @@ export default function DocumentDetailPage({ params }: PageProps) {
       <div className="flex flex-1 overflow-hidden">
         <MetadataPanel document={doc} />
         <div className="flex-1 overflow-hidden">
-          <PDFViewer url={url} />
+          <PDFViewer
+            url={url}
+            initialPage={doc.page_start ?? null}
+            pageEnd={doc.page_end ?? null}
+          />
         </div>
         {chatOpen && (
           <ChatPanel

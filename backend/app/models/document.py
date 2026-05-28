@@ -30,6 +30,9 @@ class Document(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
     )
     fts_vector: Mapped[Optional[Any]] = mapped_column(TSVECTOR, nullable=True)
+    # 1-indexed PDF page range for split-section children; NULL for unsplit docs
+    page_start: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    page_end: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     parent_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("documents.id", ondelete="CASCADE"),
