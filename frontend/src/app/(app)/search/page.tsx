@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, search } from "@/lib/api";
-import type { SearchResponse } from "@/lib/api";
+import type { DocType, SearchResponse, ViolationCategory } from "@/lib/api";
 import { FilterSidebar, type FilterState } from "@/components/search/filter-sidebar";
 import { ResultCard } from "@/components/search/result-card";
 import { SearchInput } from "@/components/search/search-input";
@@ -27,6 +28,38 @@ function hasActiveFilters(f: FilterState): boolean {
   );
 }
 
+/** Parse URL search params into search state. */
+function parseURL(sp: URLSearchParams): { query: string; filters: FilterState } {
+  const filters: FilterState = {};
+  const dt = sp.get("doc_type");
+  if (dt) filters.doc_type = dt as DocType;
+  const cats = sp.get("categories");
+  if (cats) filters.categories = cats.split(",").filter(Boolean) as ViolationCategory[];
+  const j = sp.get("jurisdiction");
+  if (j) filters.jurisdiction = j;
+  const fac = sp.get("facility");
+  if (fac) filters.facility_name = fac;
+  const df = sp.get("date_from");
+  if (df) filters.date_from = df;
+  const dtto = sp.get("date_to");
+  if (dtto) filters.date_to = dtto;
+  return { query: sp.get("q") ?? "", filters };
+}
+
+/** Serialize state into URL query string. */
+function buildURL(q: string, f: FilterState): string {
+  const sp = new URLSearchParams();
+  if (q.trim()) sp.set("q", q.trim());
+  if (f.doc_type) sp.set("doc_type", f.doc_type);
+  if (f.categories && f.categories.length) sp.set("categories", f.categories.join(","));
+  if (f.jurisdiction) sp.set("jurisdiction", f.jurisdiction);
+  if (f.facility_name) sp.set("facility", f.facility_name);
+  if (f.date_from) sp.set("date_from", f.date_from);
+  if (f.date_to) sp.set("date_to", f.date_to);
+  const qs = sp.toString();
+  return qs ? `/search?${qs}` : "/search";
+}
+
 interface SearchState {
   status: "idle" | "loading" | "success" | "error";
   response: SearchResponse | null;
@@ -38,8 +71,15 @@ interface SearchState {
 }
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<FilterState>({});
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Seed initial state from URL synchronously so the first render is correct.
+  const initial = useMemo(() => parseURL(new URLSearchParams(searchParams.toString())), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+  const [query, setQuery] = useState(initial.query);
+  const [filters, setFilters] = useState<FilterState>(initial.filters);
   const [state, setState] = useState<SearchState>({
     status: "idle",
     response: null,
@@ -49,52 +89,78 @@ export default function SearchPage() {
     lastWasFilterOnly: false,
   });
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasRunInitial = useRef(false);
 
-  const runSearch = useCallback(async (q: string, f: FilterState) => {
-    const trimmed = q.trim();
-    const filtersActive = hasActiveFilters(f);
-    if (!trimmed && !filtersActive) return;
+  // Push state changes to URL (replace, don't push — avoid history bloat).
+  const syncUrl = useCallback(
+    (q: string, f: FilterState) => {
+      const target = buildURL(q, f);
+      // Only replace if the URL would actually change
+      const here = window.location.pathname + window.location.search;
+      if (target !== here) router.replace(target, { scroll: false });
+    },
+    [router],
+  );
 
-    setState((s) => ({
-      ...s,
-      status: "loading",
-      error: null,
-      lastQuery: trimmed,
-      lastFilters: f,
-      lastWasFilterOnly: !trimmed,
-    }));
+  const runSearch = useCallback(
+    async (q: string, f: FilterState) => {
+      const trimmed = q.trim();
+      const filtersActive = hasActiveFilters(f);
+      if (!trimmed && !filtersActive) return;
 
-    try {
-      const response = await search({
-        ...(trimmed ? { query: trimmed } : {}),
-        top_k: 20,
-        ...f,
-      });
-      setState({
-        status: "success",
-        response,
+      syncUrl(trimmed, f);
+
+      setState((s) => ({
+        ...s,
+        status: "loading",
         error: null,
         lastQuery: trimmed,
         lastFilters: f,
         lastWasFilterOnly: !trimmed,
-      });
-    } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? `${err.status}: ${err.message}`
-          : err instanceof Error
-            ? err.message
-            : "Unknown error";
-      setState({
-        status: "error",
-        response: null,
-        error: msg,
-        lastQuery: trimmed,
-        lastFilters: f,
-        lastWasFilterOnly: !trimmed,
-      });
+      }));
+
+      try {
+        const response = await search({
+          ...(trimmed ? { query: trimmed } : {}),
+          top_k: 20,
+          ...f,
+        });
+        setState({
+          status: "success",
+          response,
+          error: null,
+          lastQuery: trimmed,
+          lastFilters: f,
+          lastWasFilterOnly: !trimmed,
+        });
+      } catch (err) {
+        const msg =
+          err instanceof ApiError
+            ? `${err.status}: ${err.message}`
+            : err instanceof Error
+              ? err.message
+              : "Unknown error";
+        setState({
+          status: "error",
+          response: null,
+          error: msg,
+          lastQuery: trimmed,
+          lastFilters: f,
+          lastWasFilterOnly: !trimmed,
+        });
+      }
+    },
+    [syncUrl],
+  );
+
+  // On mount, if URL had a query or filters, kick off the search.
+  useEffect(() => {
+    if (hasRunInitial.current) return;
+    hasRunInitial.current = true;
+    if (initial.query.trim() || hasActiveFilters(initial.filters)) {
+      runSearch(initial.query, initial.filters);
     }
-  }, []);
+  }, [initial, runSearch]);
 
   const onSubmit = () => runSearch(query, filters);
 
@@ -108,6 +174,7 @@ export default function SearchPage() {
     if (trimmed || hasActiveFilters(next)) {
       runSearch(query, next);
     } else {
+      syncUrl("", {});
       setState((s) => ({ ...s, status: "idle", response: null, error: null }));
     }
   };

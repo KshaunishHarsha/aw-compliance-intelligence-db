@@ -90,19 +90,36 @@ export function ResultCard({
             </div>
           </div>
           <div className="text-right shrink-0">
-            <div className="font-mono text-[10px] uppercase tracking-wider text-tertiary">
-              Match
-            </div>
-            <div className="font-display text-3xl font-medium text-accent leading-none mt-0.5">
-              {result.scores.final_score.toFixed(2)}
-            </div>
-            <div className="font-mono text-[10px] text-tertiary mt-1">
-              v {result.scores.vector_score.toFixed(2)} · bm{" "}
-              {result.scores.bm25_score.toFixed(2)}
-              {result.scores.metadata_boost > 0 && (
-                <> · meta {result.scores.metadata_boost.toFixed(2)}</>
-              )}
-            </div>
+            {result.scores.vector_score === 0 && result.scores.bm25_score === 0 ? (
+              // Filter-only mode — no semantic/keyword score to show
+              <>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-tertiary">
+                  Match
+                </div>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-accent leading-none mt-2">
+                  Filter
+                </div>
+                <div className="font-mono text-[10px] text-tertiary mt-1">
+                  metadata only
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-tertiary">
+                  Match
+                </div>
+                <div className="font-display text-3xl font-medium text-accent leading-none mt-0.5">
+                  {result.scores.final_score.toFixed(2)}
+                </div>
+                <div className="font-mono text-[10px] text-tertiary mt-1">
+                  v {result.scores.vector_score.toFixed(2)} · bm{" "}
+                  {result.scores.bm25_score.toFixed(2)}
+                  {result.scores.metadata_boost > 0 && (
+                    <> · meta {result.scores.metadata_boost.toFixed(2)}</>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

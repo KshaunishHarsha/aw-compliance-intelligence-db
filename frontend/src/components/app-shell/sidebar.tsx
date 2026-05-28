@@ -33,9 +33,7 @@ const NAV: NavItem[] = [
   {
     label: "Documents",
     href: "/documents",
-    active: (p) => p.startsWith("/documents"),
-    disabled: true,
-    badge: "Soon",
+    active: (p) => p === "/documents" || p.startsWith("/documents/"),
     icon: (
       <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden>
         <path
