@@ -221,9 +221,20 @@ These are enforced via system prompt and are non-negotiable product requirements
 | 2 | Ingestion Pipeline — OCR through retrieval summary + bulk ingest | ✅ Complete |
 | 3 | Embedding — document-level vectors via text-embedding-3-small, stored in pgvector | ✅ Complete |
 | 4 | Hybrid Retrieval Engine — BM25 + vector + metadata + match reasoning | ✅ Complete |
-| 5 | Investigation Interface — search UI, PDF viewer, filters | Not started |
+| 5 | Investigation Interface — design system, app shell, login, search, document detail with PDF viewer, browse | ✅ Complete |
 | 6 | Grounded Document Chat — scoped RAG with citations | Not started |
 | 7 | Hardening + Deployment — error handling, observability, Railway | Not started |
+
+**Phase 5 notes:**
+- Next.js 16 + Tailwind v4 + React 19. Tailwind v4 uses CSS-first `@theme inline` — there is no `tailwind.config.ts` in this stack. Next 16 makes `params` a Promise; unwrap with `React.use()`.
+- Design system tokens live in `frontend/src/app/globals.css`. Aesthetic: refined utilitarian dark, warm dark surfaces, muted amber accent (`#B8842C`), Fraunces display + IBM Plex Sans body + IBM Plex Mono for citations. Living style guide at `/design`.
+- Auth: JWT in `localStorage`, `AuthGuard` client component on the `(app)` route group redirects to `/login` if missing. Seeded dev user `test@example.com` / `test1234`.
+- Phase 1 side-fixes (also documented in Phase 4 notes): `bcrypt==4.2.0` pin, naive datetime in `auth.py`, captured user fields before commit, `pool_pre_ping=False` on the async engine.
+- Search state is URL-driven (`?q=&doc_type=&categories=&jurisdiction=&facility=&date_from=&date_to=`). On mount the page seeds state from the URL and auto-runs. Back-button from `/documents/[id]` preserves filters.
+- Filter-only search supported when query is empty (backend Phase 4 update). Result card shows "Filter / metadata only" instead of a misleading score.
+- PDF viewer: `react-pdf` v10 via `next/dynamic` with `ssr: false`. Worker pinned to its bundled pdf.js version, served from unpkg.
+- All API calls go through the typed client in `src/lib/api.ts`. 401 responses clear the session and redirect to `/login`.
+- See `docs/phase5_investigation_interface.md` for full design + architecture.
 
 **Phase 4 notes:**
 - `POST /api/search` returns top-K documents with score breakdown and (for top 5) LLM-generated `match_reason`.
