@@ -14,6 +14,7 @@ export type FilterState = Pick<
   | "categories"
   | "jurisdiction"
   | "facility_name"
+  | "species"
   | "date_from"
   | "date_to"
 >;
