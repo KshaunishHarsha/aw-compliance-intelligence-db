@@ -1,5 +1,9 @@
 "use client";
 
+// Force dynamic rendering — page depends on URL params + client-side auth.
+// Without this, Next.js 16 fails the build trying to prerender useSearchParams.
+export const dynamic = "force-dynamic";
+
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 

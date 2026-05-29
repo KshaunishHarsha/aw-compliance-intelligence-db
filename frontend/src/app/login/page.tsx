@@ -2,11 +2,21 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { ApiError, getToken, login } from "@/lib/api";
 
+// Next.js 16 requires useSearchParams() to be inside a Suspense boundary
+// during prerender. Split into an outer wrapper + inner form.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/search";

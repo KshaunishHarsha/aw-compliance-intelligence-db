@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering — page depends on URL params + client-side auth.
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
