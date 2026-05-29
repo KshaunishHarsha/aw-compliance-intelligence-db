@@ -27,14 +27,19 @@ class Settings(BaseSettings):
     supabase_bucket: str = "documents"
 
     # App
-    environment: str = "development"
+    environment: str = "development"     # 'development' | 'staging' | 'production'
     secret_key: str = "changeme"
     log_level: str = "INFO"
+    # Comma-separated list of allowed frontend origins for CORS.
+    # In production this MUST be set to the deployed frontend's origin(s).
+    cors_origins: str = "http://localhost:3000"
 
     # Auth
     access_token_expire_minutes: int = 1440  # 24 hours
     refresh_token_expire_days: int = 30
     jwt_algorithm: str = "HS256"
+    # Sliding-window rate limit on /api/auth/login per IP
+    login_rate_limit_per_minute: int = 10
 
     # LLM (OpenRouter — OpenAI-compatible)
     openrouter_api_key: str = ""
@@ -43,7 +48,36 @@ class Settings(BaseSettings):
     llm_chat_model: str = "openai/gpt-4o"
     embedding_model: str = "text-embedding-3-small"
 
+    @property
+    def is_production(self) -> bool:
+        return self.environment.lower() == "production"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    def validate_for_production(self) -> None:
+        """Refuse to run in production with insecure defaults."""
+        if not self.is_production:
+            return
+        problems: list[str] = []
+        if self.secret_key in {"changeme", "", "secret", "dev"}:
+            problems.append("SECRET_KEY must be set to a strong random value")
+        if not self.cors_origins_list or "*" in self.cors_origins_list:
+            problems.append("CORS_ORIGINS must be set to explicit frontend origins")
+        if not self.openrouter_api_key:
+            problems.append("OPENROUTER_API_KEY must be set")
+        if self.storage_provider == "supabase" and (not self.supabase_url or not self.supabase_key):
+            problems.append("SUPABASE_URL and SUPABASE_KEY must be set")
+        if problems:
+            raise RuntimeError(
+                "Refusing to boot in production: "
+                + "; ".join(problems)
+            )
+
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    s.validate_for_production()
+    return s

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy import select, update
@@ -16,6 +16,7 @@ from app.api.deps import get_current_user, get_redis
 from app.config import get_settings
 from app.db.session import get_db
 from app.models.user import User
+from app.observability.rate_limit import enforce_rate_limit
 from app.schemas.user import RefreshRequest, TokenResponse, UserResponse
 
 logger = logging.getLogger(__name__)
@@ -57,9 +58,15 @@ class _LoginBody(BaseModel):
 @router.post("/login", response_model=TokenResponse)
 async def login(
     body: _LoginBody,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     redis_client: Annotated[aioredis.Redis, Depends(get_redis)],
 ) -> TokenResponse:
+    await enforce_rate_limit(
+        redis_client, request, bucket="login",
+        limit_per_minute=settings.login_rate_limit_per_minute,
+    )
+
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 

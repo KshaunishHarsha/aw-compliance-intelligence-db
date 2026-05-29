@@ -28,8 +28,11 @@ import app.models.document  # noqa: F401
 target_metadata = Base.metadata
 settings = get_settings()
 
-# We need the sync URL for Alembic autogenerate
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# We need the sync URL for Alembic autogenerate. Escape `%` so ConfigParser
+# doesn't try to interpolate URL-encoded chars (e.g. `%40` in a password).
+config.set_main_option(
+    "sqlalchemy.url", settings.database_url.replace("%", "%%")
+)
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
