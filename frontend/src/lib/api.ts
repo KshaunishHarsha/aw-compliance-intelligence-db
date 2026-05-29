@@ -231,6 +231,21 @@ export class ApiError extends Error {
  *   {"error": {"code": "...", "message": "...", "request_id": "..."}}
  * Falls back to legacy {detail: ...} (FastAPI default) and finally statusText.
  */
+/**
+ * Read a Response body once as text, then try to parse as JSON.
+ * Avoids the "body stream already read" error from calling res.json()
+ * then res.text() on the same Response.
+ */
+async function readResponseBody(res: Response): Promise<unknown> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 function extractErrorMessage(body: unknown, statusText: string): string {
   if (body && typeof body === "object") {
     const b = body as Record<string, unknown>;
@@ -298,12 +313,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    let body: unknown;
-    try {
-      body = await res.json();
-    } catch {
-      body = await res.text();
-    }
+    const body = await readResponseBody(res);
     throw new ApiError(res.status, extractErrorMessage(body, res.statusText), body);
   }
   return (await res.json()) as T;
@@ -322,12 +332,7 @@ export async function login(email: string, password: string): Promise<TokenRespo
     body: JSON.stringify({ email, password }),
   });
   if (!res.ok) {
-    let body: unknown;
-    try {
-      body = await res.json();
-    } catch {
-      body = await res.text();
-    }
+    const body = await readResponseBody(res);
     const detail = extractErrorMessage(body, res.statusText);
     throw new ApiError(res.status, detail, body);
   }
@@ -429,8 +434,7 @@ export async function streamMessage(
   }
 
   if (!res.ok || !res.body) {
-    let body: unknown;
-    try { body = await res.json(); } catch { body = await res.text(); }
+    const body = await readResponseBody(res);
     throw new ApiError(res.status, extractErrorMessage(body, res.statusText), body);
   }
 
